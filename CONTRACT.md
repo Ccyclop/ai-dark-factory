@@ -39,9 +39,11 @@ Owner: Planner. Every change is logged in `DECISIONS.md` and announced in the ro
 | C-BUILD-3 | M1 | No step of the build downloads anything: every Go dependency is in `vendor/` and compiled with `-mod=vendor`; the Go toolchain is never auto-downloaded (`GOTOOLCHAIN=local`). Base images are pinned by tag and may be pre-pulled into the local Docker cache. | S-4, S-5, D-14 |
 | C-BUILD-4 | M1 | HTTP is served by Go's standard library `net/http`. No third-party HTTP router or framework. | S-4 |
 | C-BUILD-5 | M1 | Storage is SQLite accessed through a pure-Go driver. The binary is built with `CGO_ENABLED=0`. | S-4 |
-| C-RUN-1 | M1 | Runs exactly with `docker run --network=none --cpus=1 --memory=512m -p 8080:8080 practice`: no extra flags, environment variables, volumes or arguments are needed. | S-5 |
-| C-RUN-2 | M1 | Listens on TCP port `8080` on all interfaces inside the container, and answers `GET /health` within 10 seconds of container start. | S-5, D-12 |
+| C-RUN-1 | M1 | Runs exactly with `docker run --network=none --cpus=1 --memory=512m -p 8080:8080 practice`: no extra flags, environment variables, volumes or arguments are needed. A test harness may add only `-d`, `--rm` and `--name <name>`, which change neither resources nor network. | S-5, D-21 |
+| C-RUN-2 | M1 | Listens on TCP port `8080` on all interfaces inside the container, and answers `GET http://127.0.0.1:8080/health` from within the container's network namespace within 10 seconds of container start. | S-5, D-12, D-20 |
 | C-RUN-3 | M1 | Starts from an empty database on every fresh container. Durability across container restarts is not required. | D-13 |
+| C-RUN-4 | M1 | How clients reach the service. Under `--network=none` the container has only a loopback interface, so `-p 8080:8080` publishes nothing and the host cannot connect (confirmed 2026-09-25). Every black-box client — verifier, adversary, integrator — starts the service with the C-RUN-1 command and connects to `http://127.0.0.1:8080` from a client container that joins the service's network namespace: `docker run --rm --network container:<name> <client image> …`. The client also has no network, so its image and everything it runs must already be local. | S-5, S-14, D-20 |
+| C-RUN-5 | M1 | Image tag. The release build by the integrator uses exactly `-t practice`. Other seats may substitute a seat-specific tag (e.g. `practice-verifier`, `practice-adversary`) with otherwise identical build and run flags, so that seats sharing one Docker daemon never test each other's image. | S-5, D-21 |
 
 ---
 

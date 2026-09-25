@@ -82,3 +82,24 @@ Questions asked to the human so far: none. No part of the brief contradicts anot
 **D-19 — Key value limits.** 1–255 bytes; an empty value, a longer value, or more than one `Idempotency-Key` header is `400`.
 *Reason:* bounds storage per key and removes ambiguity about which of two headers counts.
 *Affects:* C-IDEM-5.
+
+---
+
+## Changes after the first contract (0d3f957)
+
+**D-20 — Black-box access to a `--network=none` container** (2026-09-25, raised by the implementer while WI-1 was in progress; confirmed by the planner).
+Finding: with `docker run --network=none … -p 8080:8080`, Docker publishes no port (`docker port` is empty) and the host cannot connect to `localhost:8080`, whatever the service does. S-5's run command therefore cannot be reached from the host, which conflicts with S-14 ("built and tested … under the constraints above").
+Decision (default, pending the human's answer): keep S-5's run command exactly and reach the service from inside its network namespace. Every client runs in a container started with `--network container:<service-container-name>` and connects to `http://127.0.0.1:8080`. The rejected alternative was to drop `--network=none` from the run step during tests.
+*Reason:* this is the only reading that keeps every constraint in S-5 and S-14 while tests run. Dropping `--network=none` would test the service under conditions the brief forbids. If the human chooses the alternative, only the harness changes, not the service.
+*Affects:* C-RUN-2 (amended), C-RUN-4 (new), WI-1 criterion 3 (amended, see D-22). The human was asked.
+
+**D-21 — Harness flags and per-seat image tags.** A harness may add `-d`, `--rm` and `--name` to the run command. Seats other than the integrator may build with a seat-specific tag instead of `practice`.
+*Reason:* several seats share one Docker daemon. If they all build `-t practice` from different commits, one seat can test another seat's image. These flags and tags change neither resources nor network. The integrator's release build keeps the exact tag.
+*Affects:* C-RUN-1 (amended), C-RUN-5 (new).
+
+**D-22 — WI-1 criterion 3 amended while in progress.** It said "`GET http://localhost:8080/health`", meaning from the host. It now reads: "`GET http://127.0.0.1:8080/health` from a container joined to the service's network namespace (C-RUN-4)". Nothing else in WI-1 changes. The implementer and verifier were notified in the room.
+*Reason:* the original wording cannot be met by any service (D-20).
+
+**D-23 — Build facts recorded from WI-1 (commit 9db2c84).** The base images are `golang:1.25.14-alpine3.24` (build) and `alpine:3.24.1` (runtime), both now in the local Docker cache. The build needs Go ≥ 1.25 because `modernc.org/sqlite` v1.59.0 requires it. `vendor/` is about 136 MB in about 2,000 files, none over 20 MB. `curlimages/curl:8.11.1` is also cached and can be used as a client image for C-RUN-4.
+*Reason:* the integrator's fresh clone does not include Docker's image cache (D-14). These images must stay cached on the release machine, or be pulled once, before an offline build.
+*Affects:* C-BUILD-3 (no text change).
