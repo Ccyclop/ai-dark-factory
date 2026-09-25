@@ -69,13 +69,16 @@ if [ "$FAIL" -eq 0 ]; then
     fi
     seat="verifier"; model="$VERIFIER_MODEL"
     if [ "$role" = "adversary" ]; then seat="adversary"; model="$ADVERSARY_MODEL"; fi
-    # The model and the seat's mandate are both loaded by OpenCode itself, so the seat's
-    # standing instructions do not depend on how the host passes role text to ACP agents.
-    printf '{\n  "$schema": "https://opencode.ai/config.json",\n  "model": "%s",\n  "instructions": ["factory/mandates/%s.md"]\n}\n' "$model" "$seat" > "$dir/opencode.json"
-    if git -C "$dir" status --porcelain -- opencode.json | grep -q .; then
-      bad "$dir/opencode.json is not git-ignored"
+    # Model: per-clone OpenCode project config. Mandate: AGENTS.md, which OpenCode loads into
+    # every session; a symlink keeps it current on every pull. Both files are git-ignored.
+    printf '{\n  "$schema": "https://opencode.ai/config.json",\n  "model": "%s"\n}\n' "$model" > "$dir/opencode.json"
+    ln -sfn "factory/mandates/$seat.md" "$dir/AGENTS.md"
+    if git -C "$dir" status --porcelain -- opencode.json AGENTS.md | grep -q .; then
+      bad "$dir: opencode.json or AGENTS.md is not git-ignored"
+    elif [ ! -f "$dir/AGENTS.md" ]; then
+      bad "$dir/AGENTS.md does not resolve to factory/mandates/$seat.md"
     else
-      ok "$dir/opencode.json → $model + mandates/$seat.md (git-ignored)"
+      ok "$dir → model $model, mandate $seat.md (git-ignored)"
     fi
   done
 else

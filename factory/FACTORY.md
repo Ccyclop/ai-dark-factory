@@ -55,7 +55,7 @@ GitHub `origin/main` is the hub. Every seat pulls with rebase before starting, c
 | `adversary/` | Adversary |
 | Delivery folders (named in the brief), `METRICS.md` | Integrator (delivery folders write-once) |
 | `factory/`, `.claude/` | Human only |
-| `/opencode.json` in each seat clone | Local, git-ignored; holds only that seat's model id |
+| `/opencode.json`, `/AGENTS.md` in each seat clone | Local, git-ignored; that seat's model id and a link to its mandate |
 
 ## Room conventions
 
@@ -84,6 +84,6 @@ To be filled after the run from `METRICS.md` and `COST.md`.
 ## Limitations
 
 1. **Filesystem boundaries between seats are advisory.** OpenCode's `external_directory` rule blocks file tools but not shell commands: during setup, both OpenCode seats could list a sibling seat's clone with `ls`. Independence therefore rests on separate model families, separate clones and the mandates. Full isolation would need one Docker sandbox per seat.
-2. **OpenCode seats run through ACP.** BAND Desktop's native OpenCode runtime intermittently failed to offer a custom OpenAI-compatible provider at startup (the model check raced the provider load), so the verifier and adversary run as ACP agents (`opencode acp`), each selecting its model through a git-ignored `opencode.json` in its own clone. That file also loads the seat's mandate through OpenCode's own `instructions` setting, because we could not confirm that ACP agents receive BAND's role text: after a mandate update, the Claude Code seats quoted the new section verbatim while the ACP seat reported not having it.
+2. **OpenCode seats run through ACP.** BAND Desktop's native OpenCode runtime intermittently failed to offer a custom OpenAI-compatible provider at startup (the model check raced the provider load), so the verifier and adversary run as ACP agents (`opencode acp`), each selecting its model through a git-ignored `opencode.json` in its own clone. BAND gives ACP agents only their description, truncated, and not the role file, so each OpenCode seat loads its mandate from a git-ignored `AGENTS.md` symlinked to `factory/mandates/<seat>.md`. This was caught in setup by asking each seat, without file access, for a detail only its mandate contains: the Claude Code seats answered, the ACP seats did not until `AGENTS.md` was in place.
 3. **Claude seats inherit the operator's Claude Code login.** claude.ai connectors are disabled at user level because BAND's runtime probe starts outside the repository, where the project-level setting does not apply.
 4. To be completed after the run.
