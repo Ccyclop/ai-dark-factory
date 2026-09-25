@@ -30,7 +30,7 @@ else
 fi
 
 echo "Secrets check (tracked files)"
-if git ls-files -z | xargs -0 grep -nIE '(fw-[A-Za-z0-9]{16,}|sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})' 2>/dev/null; then
+if git ls-files -z | xargs -0 grep -nIE '(rc_[A-Za-z0-9]{16,}|fw-[A-Za-z0-9]{16,}|sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})' 2>/dev/null; then
   bad "possible credential found in tracked files (see above)"
 else
   ok "no obvious credentials in tracked files"
