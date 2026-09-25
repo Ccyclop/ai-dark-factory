@@ -26,4 +26,4 @@ Build a small inventory reservation service as a JSON API.
 - Milestone 1 behaviour must keep passing.
 
 ## Done
-Both milestones released: every item accepted by the verifier and each delivery folder built and tested by the integrator under the constraints above.
+Both milestones released: every item accepted by the verifier, no break found by the adversary, and each delivery folder built and tested by the integrator under the constraints above.

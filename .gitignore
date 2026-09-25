@@ -1,0 +1,9 @@
+# secrets and local config — never commit
+.env
+.env.*
+*.pem
+*.key
+.claude/settings.local.json
+
+# OS noise
+.DS_Store
