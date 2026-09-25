@@ -4,23 +4,27 @@ A five-seat software factory running in BAND Desktop across three model families
 
 ## Seats
 
-| Seat | Runtime | Model | Workspace | Mandate |
-|---|---|---|---|---|
-| Planner | Claude Code | Claude | main clone | `mandates/planner.md` |
-| Implementer | Claude Code | Claude | main clone | `mandates/implementer.md` |
-| Verifier | OpenCode | GLM-5.2 via Featherless | own clone | `mandates/verifier.md` |
-| Adversary | OpenCode | third model family via Featherless (exact id in `COST.md`) | own clone | `mandates/adversary.md` |
-| Integrator | Claude Code | Claude | fresh temp clone per release | `mandates/integrator.md` |
+| Seat | Runtime | Model | Reasoning | Workspace | Mandate |
+|---|---|---|---|---|---|
+| Planner | Claude Code | Claude Opus 5.5, 1M context | xhigh | main clone | `mandates/planner.md` |
+| Implementer | Claude Code | Claude Opus 5.5, 1M context | high | main clone | `mandates/implementer.md` |
+| Verifier | OpenCode via ACP | Kimi K2.7 Code (Moonshot) via Featherless | provider default | own clone | `mandates/verifier.md` |
+| Adversary | OpenCode via ACP | GLM-5.2 (Z.ai) via Featherless | provider default | own clone | `mandates/adversary.md` |
+| Integrator | Claude Code | Claude Sonnet 5 | medium | fresh temp clone per release | `mandates/integrator.md` |
+
+The seat that runs most often (the verifier, once per work item) sits on the cheapest capable model; the seat that runs least often (the adversary, once per milestone) sits on the more expensive open model.
 
 ## Key design decisions
 
-**1. Independence by construction.** The verifier and the adversary run on model families different from the implementer's, in physically separate clones, and derive their tests from the contract without reading the implementer's reasoning. Agent teams most often accept broken work because author and checker share blind spots; separating model, workspace and information removes all three shared sources of error.
+**1. Independent verification.** The verifier and the adversary run on model families different from the implementer's and from each other's, each in its own clone, and derive their tests from the contract rather than from the implementer's reasoning. Agent teams most often accept broken work because author and checker share blind spots; separating model, workspace and information attacks all three.
 
 **2. Contract first.** Before any code, the planner copies every externally visible name, shape, error condition and invariant from the specification, verbatim, into `CONTRACT.md`. Every work item, test and attack cites contract ids. Graders test exact names and shapes; paraphrase is the cheapest way to lose points and this removes it.
 
 **3. Every break becomes a permanent test.** The adversary attacks accepted work for concurrency, replay, malformed input and state violations. Each BREAK becomes a fix item whose break case the verifier adds to the acceptance suite, so the suite only ratchets up and later milestones cannot regress.
 
-**4. The factory measures itself.** Every release reports first-pass acceptance rate, REJECTs, BREAKs, fix cycles, human questions and wall time in `METRICS.md`.
+**4. The factory measures itself.** Every release reports first-pass acceptance rate, REJECTs, BREAKs, fix cycles, human questions and wall time in `METRICS.md`; cost per seat is logged in `COST.md`.
+
+**5. Guardrails in the runtime, not only in the prompt.** Force-push and `sudo` are denied by the OpenCode permission config, not just forbidden in the mandates; Claude seats run with no inherited connectors, hooks or skills beyond what the room needs.
 
 ## Flow
 
@@ -39,7 +43,7 @@ all items ACCEPT ─► MILESTONE-CANDIDATE ─► Adversary
 
 ## Repository sync
 
-GitHub `origin/main` is the hub. Every seat pulls with rebase before starting, commits only the paths it owns, pushes immediately, and never force-pushes. Because ownership never overlaps, conflicts do not arise.
+GitHub `origin/main` is the hub. Every seat pulls with rebase before starting, commits only the paths it owns, pushes immediately, never force-pushes, and ends each commit message with a `Seat: <name>` trailer, so `git log` shows which seat produced every change.
 
 ## Ownership: who may write where
 
@@ -50,11 +54,12 @@ GitHub `origin/main` is the hub. Every seat pulls with rebase before starting, c
 | Acceptance directory (`acceptance/` by default) | Verifier |
 | `adversary/` | Adversary |
 | Delivery folders (named in the brief), `METRICS.md` | Integrator (delivery folders write-once) |
-| `factory/` | Human only |
+| `factory/`, `.claude/` | Human only |
+| `/opencode.json` in each seat clone | Local, git-ignored; holds only that seat's model id |
 
 ## Room conventions
 
-Every handoff message starts with its type tag and id and mentions the receiving seat: `WORK-ITEM`, `EVIDENCE`, `ACCEPT`, `REJECT`, `MILESTONE-CANDIDATE`, `BREAK`, `NO-BREAK`, `MILESTONE-COMPLETE`, `RELEASE`. The tags make the room export an audit log that the integrator can compute metrics from.
+Every handoff message starts with its type tag and id and mentions the receiving seat: `WORK-ITEM`, `EVIDENCE`, `ACCEPT`, `REJECT`, `MILESTONE-CANDIDATE`, `BREAK`, `NO-BREAK`, `MILESTONE-COMPLETE`, `RELEASE`. Seats also keep the room's work board current. The tags make the room export an audit log that the integrator computes metrics from.
 
 ## Gates
 
@@ -78,4 +83,7 @@ To be filled after the run from `METRICS.md` and `COST.md`.
 
 ## Limitations
 
-To be filled after the run.
+1. **Filesystem boundaries between seats are advisory.** OpenCode's `external_directory` rule blocks file tools but not shell commands: during setup, both OpenCode seats could list a sibling seat's clone with `ls`. Independence therefore rests on separate model families, separate clones and the mandates. Full isolation would need one Docker sandbox per seat.
+2. **OpenCode seats run through ACP.** BAND Desktop's native OpenCode runtime intermittently failed to offer a custom OpenAI-compatible provider at startup (the model check raced the provider load), so the verifier and adversary run as ACP agents (`opencode acp`), each selecting its model through a git-ignored `opencode.json` in its own clone.
+3. **Claude seats inherit the operator's Claude Code login.** claude.ai connectors are disabled at user level because BAND's runtime probe starts outside the repository, where the project-level setting does not apply.
+4. To be completed after the run.

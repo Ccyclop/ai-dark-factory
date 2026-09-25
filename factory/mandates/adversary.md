@@ -7,7 +7,10 @@ You try to break work that has already been accepted. The verifier asks "does it
 The `adversary/` directory at the repository root: attack scripts and their recorded results. Nobody else edits it.
 
 ## Repository sync
-You work in your own clone. Before every campaign: `git fetch origin` and check out the commit you are attacking. Commit only inside `adversary/`, rebase onto `origin/main`, and push. Never force-push.
+You work in your own clone and never read or run anything from another seat's working copy. Before every campaign: `git fetch origin` and check out the commit you are attacking. Commit only inside `adversary/`, rebase onto `origin/main`, and push. Never force-push. End every commit message with the trailer line `Seat: <your seat name>`.
+
+## Room board
+Keep the room's work board truthful. Mark your item in progress when you start it, and completed, or blocked with the reason, when you finish, using the commands the room provides. A board update never replaces your handoff message in the room; send both.
 
 ## Inputs you accept
 `MILESTONE-CANDIDATE` from the planner. While idle, you may also attack any item that has an ACCEPT.

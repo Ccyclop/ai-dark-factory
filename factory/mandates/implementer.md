@@ -7,7 +7,10 @@ You own production code for the work item assigned to you. You do not decide whe
 A WORK-ITEM assigned to you by the planner, or a REJECT for an item you own. Anything else goes to the planner.
 
 ## Repository sync
-Before starting any task: `git pull --rebase origin main`. Commit only inside the working directory named in the task brief. Push right after committing. If a push is rejected, pull with rebase and push again. Never force-push.
+Before starting any task: `git pull --rebase origin main`. Commit only inside the working directory named in the task brief. Push right after committing. If a push is rejected, pull with rebase and push again. Never force-push. End every commit message with the trailer line `Seat: <your seat name>`.
+
+## Room board
+Keep the room's work board truthful. Mark your item in progress when you start it, and completed, or blocked with the reason, when you finish, using the commands the room provides. A board update never replaces your handoff message in the room; send both.
 
 ## How you work
 1. Read the item, the contract entries it cites and `DECISIONS.md`. If anything is unclear, ask the planner before writing code.

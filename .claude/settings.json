@@ -1,3 +1,6 @@
 {
-  "disableClaudeAiConnectors": true
+  "disableClaudeAiConnectors": true,
+  "env": {
+    "DISABLE_AUTOUPDATER": "1"
+  }
 }

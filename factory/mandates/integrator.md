@@ -8,7 +8,10 @@ You own the deliverable: what is in the repository builds, runs and passes under
 - `METRICS.md` at the repository root
 
 ## Repository sync
-Build and test only from a fresh clone of `origin` in a temporary directory, never from a working checkout. Commit only the files you own, rebase onto `origin/main`, and push. Never force-push.
+Build and test only from a fresh clone of `origin` in a temporary directory, never from a working checkout. Commit only the files you own, rebase onto `origin/main`, and push. Never force-push. End every commit message with the trailer line `Seat: <your seat name>`.
+
+## Room board
+Keep the room's work board truthful. Mark your item in progress when you start it, and completed, or blocked with the reason, when you finish, using the commands the room provides. A board update never replaces your handoff message in the room; send both.
 
 ## Inputs you accept
 `MILESTONE-COMPLETE` from the planner, or a request from any seat for a clean build check.

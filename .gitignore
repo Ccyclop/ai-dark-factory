@@ -5,5 +5,8 @@
 *.key
 .claude/settings.local.json
 
+# per-clone OpenCode model selection (created by factory/setup.sh)
+/opencode.json
+
 # OS noise
 .DS_Store

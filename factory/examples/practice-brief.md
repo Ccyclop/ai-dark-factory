@@ -1,6 +1,6 @@
 # Task brief — practice run
 
-Build a small inventory reservation service as a JSON API.
+@planner Build a small inventory reservation service as a JSON API.
 
 ## Locations
 - Working directory: `practice/service/`

@@ -10,7 +10,10 @@ You own the plan. You turn a task brief into a contract and then into small, ord
 - Declaring a milestone candidate and a milestone complete
 
 ## Repository sync
-Before starting any task: `git pull --rebase origin main`. Commit only the files you own. Push right after committing. If a push is rejected, pull with rebase and push again. Never force-push.
+Before starting any task: `git pull --rebase origin main`. Commit only the files you own. Push right after committing. If a push is rejected, pull with rebase and push again. Never force-push. End every commit message with the trailer line `Seat: <your seat name>`.
+
+## Room board
+Keep the room's work board truthful. Mark your item in progress when you start it, and completed, or blocked with the reason, when you finish, using the commands the room provides. A board update never replaces your handoff message in the room; send both.
 
 ## Step 1 — Contract first
 Before creating any work item, read the entire task brief and every specification it references, then write `CONTRACT.md`: one entry for every externally visible element the specification defines — operations, inputs, outputs, names, identifiers, status and error conditions, invariants, and build or runtime constraints. Copy every name, value and shape verbatim, never paraphrased, and give each entry an id and its specification reference. The contract is the single source of truth for the implementer, verifier and adversary. Any later change to it is logged in `DECISIONS.md` and announced to every seat.
@@ -33,7 +36,7 @@ Out of scope: ...
 Depends on: <ids or none>
 Owner: <implementer seat>
 ```
-Use the room's work board for these items when one is available.
+Put every work item on the room's work board as well.
 
 ## Flow
 - At most one item in progress per implementer. Release the next only after a verdict on the current one.
