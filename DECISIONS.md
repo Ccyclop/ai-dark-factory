@@ -103,3 +103,6 @@ Decision (default, pending the human's answer): keep S-5's run command exactly a
 **D-23 — Build facts recorded from WI-1 (commit 9db2c84).** The base images are `golang:1.25.14-alpine3.24` (build) and `alpine:3.24.1` (runtime), both now in the local Docker cache. The build needs Go ≥ 1.25 because `modernc.org/sqlite` v1.59.0 requires it. `vendor/` is about 136 MB in about 2,000 files, none over 20 MB. `curlimages/curl:8.11.1` is also cached and can be used as a client image for C-RUN-4.
 *Reason:* the integrator's fresh clone does not include Docker's image cache (D-14). These images must stay cached on the release machine, or be pulled once, before an offline build.
 *Affects:* C-BUILD-3 (no text change).
+
+**D-24 — The human confirms D-20** (2026-09-26). The answer to the one question asked: "Keep your default: the exact run command stays, and tests reach the service through its network namespace (C-RUN-4, C-RUN-5). The contradiction was an error in the brief, not a requirement. No other changes." D-20 is no longer provisional. The contract text does not change.
+Questions asked to the human in total: 1 (D-20), answered.
