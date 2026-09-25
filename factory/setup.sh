@@ -67,12 +67,15 @@ if [ "$FAIL" -eq 0 ]; then
     else
       if git clone --quiet "$ORIGIN" "$dir"; then ok "$dir  (cloned)"; else bad "$dir  (clone failed)"; continue; fi
     fi
-    model="$VERIFIER_MODEL"; [ "$role" = "adversary" ] && model="$ADVERSARY_MODEL"
-    printf '{\n  "$schema": "https://opencode.ai/config.json",\n  "model": "%s"\n}\n' "$model" > "$dir/opencode.json"
+    seat="verifier"; model="$VERIFIER_MODEL"
+    if [ "$role" = "adversary" ]; then seat="adversary"; model="$ADVERSARY_MODEL"; fi
+    # The model and the seat's mandate are both loaded by OpenCode itself, so the seat's
+    # standing instructions do not depend on how the host passes role text to ACP agents.
+    printf '{\n  "$schema": "https://opencode.ai/config.json",\n  "model": "%s",\n  "instructions": ["factory/mandates/%s.md"]\n}\n' "$model" "$seat" > "$dir/opencode.json"
     if git -C "$dir" status --porcelain -- opencode.json | grep -q .; then
       bad "$dir/opencode.json is not git-ignored"
     else
-      ok "$dir/opencode.json → $model (git-ignored)"
+      ok "$dir/opencode.json → $model + mandates/$seat.md (git-ignored)"
     fi
   done
 else

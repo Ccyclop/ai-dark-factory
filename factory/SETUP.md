@@ -32,7 +32,7 @@ It writes `~/.config/opencode/opencode.json` (provider, models, and permissions:
 ```bash
 ./factory/setup.sh
 ```
-It checks everything above, creates or updates two independent sibling clones (`<repo>-verify`, `<repo>-adversary`), writes each clone's git-ignored `opencode.json` with that seat's model, and prints the agent table with your absolute paths. Override models with `VERIFIER_MODEL=… ADVERSARY_MODEL=…`.
+It checks everything above, creates or updates two independent sibling clones (`<repo>-verify`, `<repo>-adversary`), writes each clone's git-ignored `opencode.json` with that seat's model and its mandate as OpenCode `instructions`, and prints the agent table with your absolute paths. Override models with `VERIFIER_MODEL=… ADVERSARY_MODEL=…`.
 
 ## 4. Create five agents in BAND Desktop
 
@@ -65,7 +65,9 @@ In **Test runtime → Details** expect exactly one MCP server (`jam`) and the in
 | Session name | `verifier` | `adversary` |
 | Environment allowlist | `PATH,HOME,SSH_AUTH_SOCK,OPENCODE_CONFIG` | same |
 
-The model comes from each clone's `opencode.json`. BAND's native OpenCode tab was not used; see Limitations in `FACTORY.md`.
+The model and the mandate both come from each clone's `opencode.json`; still choose the role file in BAND so the agent's profile matches. BAND's native OpenCode tab was not used; see Limitations in `FACTORY.md`.
+
+To confirm a seat really runs under its mandate, ask it something only the mandate answers, without reading files — for example the first line of its report format.
 
 ### Check each seat
 
