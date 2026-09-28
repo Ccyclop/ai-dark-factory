@@ -109,9 +109,11 @@ reserve_ok() {
 # ---------------------------------------------------------------- harness
 head_ "Harness: C-RUN-4 / C-RUN-5 preconditions"
 if [ "$STUB" = "1" ]; then
-  docker image inspect adversary-stub:local >/dev/null 2>&1 \
-    || die "build it first: docker build --network=none -t adversary-stub:local adversary/dryrun"
-  ADV_TAG=adversary-stub:local
+  adv_build_stub
+  adv_build_tool
+  docker image inspect "$ADV_STUB_TAG" >/dev/null 2>&1 \
+    || die "stub image missing: $ADV_STUB_TAG"
+  ADV_TAG="$ADV_STUB_TAG"
   printf '  self-test mode: stub image, results are NOT a verdict\n'
 else
   adv_build_tool
@@ -185,6 +187,38 @@ out="$(adv_tool bigbody 1048577 POST /items 2>&1)"
 eq "body of 1048577 bytes rejected (C-ERR-400)" "400" "$(adv_status "$out")"
 out="$(adv_tool req POST /items --body '{"name":"x","stock":1} {"name":"y","stock":2}' 2>&1)"
 eq "trailing content after the object rejected" "400" "$(adv_status "$out")"
+
+# ---------------------------------------------------------------- C-PATH-1 on {id}
+head_ "C-PATH-1: id segments are decoded on their own, %2F is not a separator"
+new_item path 3 || bad "could not create the item for the path checks"
+if [ -n "${ITEM_ID:-}" ]; then
+  P_ID="$ITEM_ID"
+  out="$(adv_tool req GET "/items/$P_ID" 2>&1)"
+  eq "the plain id is the route" "200" "$(adv_status "$out")"
+  # An encoded digit is the same id (D-26), and this is the case a fully decoded
+  # URL.Path cannot get right: Go's URL.Path would turn %2F into a separator.
+  ENC="$(pct_encode "$P_ID")"
+  out="$(adv_tool req GET "/items/$ENC" 2>&1)"
+  eq "an encoded digit is the same id (C-PATH-1)" "200" "$(adv_status "$out")"
+  out="$(adv_tool req GET "/items%2F$P_ID" 2>&1)"
+  eq "/items%2F<id> is 404: %2F is not a separator" "404" "$(adv_status "$out")"
+  out="$(adv_tool req GET "/items/$P_ID%2F" 2>&1)"
+  eq "a trailing %2F is 404" "404" "$(adv_status "$out")"
+  out="$(adv_tool req GET "/items/$P_ID%2F0" 2>&1)"
+  eq "a second segment after %2F is 404" "404" "$(adv_status "$out")"
+  out="$(adv_tool req GET "/items/%30$P_ID" 2>&1)"
+  eq "a leading zero is not a canonical id (D-8)" "404" "$(adv_status "$out")"
+  out="$(adv_tool req GET "/items/$P_ID.0" 2>&1)"
+  eq "a non-integer id segment is 404" "404" "$(adv_status "$out")"
+  out="$(adv_tool req GET "/items/$P_ID%20" 2>&1)"
+  eq "an encoded space is 404" "404" "$(adv_status "$out")"
+  out="$(adv_tool req GET "/items/../items/$P_ID" 2>&1)"
+  eq "a dot segment is not removed (404, not the item)" "404" "$(adv_status "$out")"
+  out="$(adv_tool req GET "/items//$P_ID" 2>&1)"
+  eq "an empty segment is 404" "404" "$(adv_status "$out")"
+  out="$(adv_tool req GET "/items/$P_ID/" 2>&1)"
+  eq "a trailing slash is 404" "404" "$(adv_status "$out")"
+fi
 
 # ---------------------------------------------------------------- C-RES under simultaneity
 head_ "C-RES-6 / C-INV-1: 50 simultaneous reserves on one item (S-11)"

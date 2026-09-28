@@ -1,19 +1,13 @@
 == Harness: C-RUN-4 / C-RUN-5 reachability preconditions
-[adv] docker build --network=none -t practice-adversary .  (in practice/service)
   PASS service built offline with tag practice-adversary (C-RUN-5)
-[adv] docker run -d --rm --name adv-svc --network=none --cpus=1 --memory=512m -p 8080:8080 practice-adversary
   PASS docker port is empty: -p 8080:8080 publishes nothing (C-RUN-4 premise)
   PASS host cannot reach 127.0.0.1:8080 (C-RUN-4 premise holds)
   PASS a detached-namespace container cannot reach it either
   PASS run limits intact: NetworkMode=none NanoCpus=1 Memory=512m (C-RUN-1)
 == C-RUN-2: /health answers at 127.0.0.1:8080 within 10s of container start
-[adv] docker run -d --rm --name adv-svc --network=none --cpus=1 --memory=512m -p 8080:8080 practice-adversary
-  PASS cold start 1: READY ms=1 status=200 body={"status": "ok"}
-[adv] docker run -d --rm --name adv-svc --network=none --cpus=1 --memory=512m -p 8080:8080 practice-adversary
-  PASS cold start 2: READY ms=3 status=200 body={"status": "ok"}
-[adv] docker run -d --rm --name adv-svc --network=none --cpus=1 --memory=512m -p 8080:8080 practice-adversary
+  PASS cold start 1: READY ms=5 status=200 body={"status": "ok"}
+  PASS cold start 2: READY ms=0 status=200 body={"status": "ok"}
   PASS cold start 3: READY ms=0 status=200 body={"status": "ok"}
-[adv] docker run -d --rm --name adv-svc --network=none --cpus=1 --memory=512m -p 8080:8080 practice-adversary
 == C-OP-HEALTH: GET /health -> 200 {"status": "ok"}
   PASS status 200
   PASS body exactly {"status": "ok"}
@@ -43,12 +37,20 @@
   PASS GET /%2e/health -> 404 {"error":"not found"}
   PASS GET /health%00 -> 404 {"error":"not found"}
   PASS GET /health%20 -> 404 {"error":"not found"}
-== WATCH: percent-encoded spellings of the /health route
-  WATCH GET /%68ealth -> 200 (percent-decoded to the route /health)
-  WATCH GET /he%61lth -> 200 (percent-decoded to the route /health)
-  WATCH GET /%68ea%6ct%68 -> 200 (percent-decoded to the route /health)
-  PASS GET /health%3f -> 404
-  PASS GET /HEALTH -> 404
+== C-PATH-1: percent-encoded spellings and non-normalisation (D-26)
+  PASS GET /%68ealth (h is an encoded unreserved character) -> 200
+  PASS GET /he%61lth -> 200
+  PASS GET /%68ea%6ct%68 -> 200
+  PASS GET /%68ealth?x=1 (decoded, query ignored) -> 200
+  PASS GET /health%2F (%2F is not a separator) -> 404 {"error":"not found"}
+  PASS GET /health%2f%2e -> 404 {"error":"not found"}
+  PASS GET /%2e/health (no dot-segment removal) -> 404 {"error":"not found"}
+  PASS GET /items%2F1 (%2F does not create a segment) -> 404 {"error":"not found"}
+  PASS GET /%68ealth/extra -> 404 {"error":"not found"}
+  PASS GET /%68ealth/ -> 404 {"error":"not found"}
+  PASS GET //%68ealth (no empty segments) -> 404 {"error":"not found"}
+  PASS GET /HEALTH (case matters) -> 404 {"error":"not found"}
+  PASS GET /%zz -> 400 (rejected before routing, D-27)
 == C-ERR-405: wrong method on a route is 405 + Allow + C-REP-ERR
   PASS POST /health -> 405 {"error":"method not allowed"}
   PASS PUT /health -> 405 {"error":"method not allowed"}
@@ -116,15 +118,11 @@
   PASS burst 200 GET /health: 200=200
   PASS burst 50 POST /health: 405=50
 == C-ERR-500 under sustained load: 15s, mixed routes and methods
-  PASS load /health: 200=341437 total=341437
-  PASS load /nope: 404=238751
+  PASS load /health: 200=406176 total=406176
+  PASS load /nope: 404=266107
 == C-RUN-3 / C-INV-1 / C-INV-2: not observable at WI-1
   SKIP C-RUN-3 fresh database: no endpoint stores anything yet
   SKIP C-INV-1/C-INV-2 stock arithmetic: no item or reservation endpoint yet
   SKIP C-IDEM-*: Milestone 2
-== Result  pass=94 fail=0 skip=3 watch=3
-Observations for the planner (not breaks):
-  - GET /%68ealth -> 200 (percent-decoded to the route /health)
-  - GET /he%61lth -> 200 (percent-decoded to the route /health)
-  - GET /%68ea%6ct%68 -> 200 (percent-decoded to the route /health)
+== Result  pass=105 fail=0 skip=3 watch=0
 EXIT=0

@@ -7,7 +7,7 @@ before its first real use.
 ## Why
 
 `adversary/attack-state.sh` attacks C-CREATE-4, C-RES-5/6/7, C-CAN-1..4,
-C-INV-1/2/3/4, C-ERR-PREC, C-IDEM-1..7 and C-RUN-3 — roughly 80 checks, none of
+C-INV-1/2/3/4, C-ERR-PREC, C-IDEM-1..7 and C-RUN-3 — roughly 95 checks, none of
 which can run against the walking skeleton. Shipping an attack script whose only
 ever execution is its first real one at a gate means any quoting, JSON-reading or
 arithmetic bug in it arrives wearing the costume of a contract break, and the room
@@ -24,7 +24,7 @@ script then runs against it with `--stub`, which swaps the image and prints
 
 ```
 docker build --network=none -t adversary-stub:local adversary/dryrun
-adversary/attack-state.sh --stub          # 84 checks, 84 pass, 0 fail
+adversary/attack-state.sh --stub          # 95 checks, 95 pass, 0 fail
 ```
 
 Against the real walking skeleton the same script gates out cleanly:
@@ -49,10 +49,21 @@ adversary/attack-state.sh                 # 4 harness checks pass, 26 contract i
    retries once when Docker itself fails (exit 125..127 with no status line, which
    the tool never produces) and the output says so on stderr. Blaming the service
    for my own tooling is the one mistake this seat cannot afford.
+4. **`--stub` only checked that the stub image existed, never rebuilt it** — the same
+   stale-image trap as item 1 in the WI-1 report, in a second place. It now rebuilds.
+   The stale stub was still using `http.ServeMux`, which cleans request paths and
+   answers `301` for dot and empty segments. C-PATH-1 (D-26) forbids exactly that, and
+   the new path-matching checks caught it as two `301`s where `404` is required. The
+   stub now routes segment by segment, like the real service.
+5. **My own percent-encoder was wrong.** `sed 's/./%&/g'` turns `14` into `%1%4`, not
+   `%31%34`, so the "an encoded digit is the same id" check was sending invalid
+   percent-encoding and `net/http` correctly refused it with `400`. Replaced with
+   `pct_encode` in `lib.sh`, which encodes byte by byte.
 
-After the fixes, the WI-1 set reproduces its recorded result exactly — 94 pass, 0
-fail, 3 skip, 3 watch — on the same commit, with the corrected harness.
+After the fixes, the state set is green against the stub (95 checks) and the WI-1 set
+reproduces its recorded result exactly on the same commit, now with the C-PATH-1 checks
+that D-26 added: 105 pass, 0 fail, 3 skip, 0 watch.
 
 ## Log
 
-`adversary/results/selftest-stub.log` — the full 84-check self-test run.
+`adversary/results/selftest-stub.log` — the full 95-check self-test run.

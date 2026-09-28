@@ -1,5 +1,106 @@
 
 == Harness: C-RUN-4 / C-RUN-5 preconditions
+[adv] building stub image adversary-stub:local
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 636B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/alpine:3.24.1
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/golang:1.25.14-alpine3.24
+#3 DONE 0.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [build 1/4] FROM docker.io/library/golang:1.25.14-alpine3.24@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59
+#5 resolve docker.io/library/golang:1.25.14-alpine3.24@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 0.0s done
+#5 DONE 0.0s
+
+#6 [stage-1 1/2] FROM docker.io/library/alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+#6 resolve docker.io/library/alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b 0.0s done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 29B done
+#7 DONE 0.0s
+
+#8 [build 2/4] WORKDIR /src
+#8 CACHED
+
+#9 [build 3/4] COPY main.go ./
+#9 CACHED
+
+#10 [build 4/4] RUN go build -trimpath -o /out/stub main.go
+#10 CACHED
+
+#11 [stage-1 2/2] COPY --from=build /out/stub /usr/local/bin/stub
+#11 CACHED
+
+#12 exporting to image
+#12 exporting layers done
+#12 exporting manifest sha256:48a058ab3c99fff033ef7d1ffd0eddfc6e48677de9952abef6829f599fe47e81 done
+#12 exporting config sha256:fed4fdc646e60e6558f0bc0c0c972b7b5009e6b39747177cb533d7c3cea84bc3 done
+#12 exporting attestation manifest sha256:32182fa73520e208627e0882dfc1d27d8c7ccae817f5fef606046e7a09926e0e 0.0s done
+#12 exporting manifest list sha256:1fdb5b5e8fdd634319d43b8d91a2ee58916fa69b8b28c7141ced557be54c9396 done
+#12 naming to docker.io/library/adversary-stub:local done
+#12 unpacking to docker.io/library/adversary-stub:local done
+#12 DONE 0.1s
+[adv] building attack tool image adversary-tool:local
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 534B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/alpine:3.24.1
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/golang:1.25.14-alpine3.24
+#3 DONE 0.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [build 1/4] FROM docker.io/library/golang:1.25.14-alpine3.24@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59
+#5 resolve docker.io/library/golang:1.25.14-alpine3.24@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 0.0s done
+#5 DONE 0.0s
+
+#6 [stage-1 1/2] FROM docker.io/library/alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+#6 resolve docker.io/library/alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b 0.0s done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 30B done
+#7 DONE 0.0s
+
+#8 [build 3/4] COPY main.go ./
+#8 CACHED
+
+#9 [build 4/4] RUN go build -trimpath -o /out/advtool main.go
+#9 CACHED
+
+#10 [build 2/4] WORKDIR /src
+#10 CACHED
+
+#11 [stage-1 2/2] COPY --from=build /out/advtool /usr/local/bin/advtool
+#11 CACHED
+
+#12 exporting to image
+#12 exporting layers done
+#12 exporting manifest sha256:406af3a19393b8e9efe8e43248b07a49138fcf6f0508d7115cc3a19c64febb77 done
+#12 exporting config sha256:5cdcfb3e434333dff63dda2a50029b0bb394c036029adf916196483ff0aa005f done
+#12 exporting attestation manifest sha256:93cc37904c576fec074b400bd3eff464688f16e205d96e8fbb9bb00ce86e8a89 0.0s done
+#12 exporting manifest list sha256:154de0fe11c649aab2ffeadc9a7e905881e9575d6f38c9a35c5afcbd50893bc4
+#12 exporting manifest list sha256:154de0fe11c649aab2ffeadc9a7e905881e9575d6f38c9a35c5afcbd50893bc4 done
+#12 naming to docker.io/library/adversary-tool:local done
+#12 unpacking to docker.io/library/adversary-tool:local done
+#12 DONE 0.1s
   self-test mode: stub image, results are NOT a verdict
   PASS docker port is empty: -p 8080:8080 publishes nothing (C-RUN-4 premise)
   PASS run limits intact (C-RUN-1) -> none 1000000000 536870912
@@ -31,6 +132,19 @@
   PASS whitespace-only name rejected -> 400
   PASS body of 1048577 bytes rejected (C-ERR-400) -> 400
   PASS trailing content after the object rejected -> 400
+
+== C-PATH-1: id segments are decoded on their own, %2F is not a separator
+  PASS the plain id is the route -> 200
+  PASS an encoded digit is the same id (C-PATH-1) -> 200
+  PASS /items%2F<id> is 404: %2F is not a separator -> 404
+  PASS a trailing %2F is 404 -> 404
+  PASS a second segment after %2F is 404 -> 404
+  PASS a leading zero is not a canonical id (D-8) -> 404
+  PASS a non-integer id segment is 404 -> 404
+  PASS an encoded space is 404 -> 404
+  PASS a dot segment is not removed (404, not the item) -> 404
+  PASS an empty segment is 404 -> 404
+  PASS a trailing slash is 404 -> 404
 
 == C-RES-6 / C-INV-1: 50 simultaneous reserves on one item (S-11)
   PASS 50 x 1 unit on stock 5 -> 5 x 201, 45 x 409 -> 201=5 409=45
@@ -66,7 +180,7 @@
   PASS status is cancelled (C-CAN-1) -> cancelled
   PASS available is 10 after the cancel -> 10
   PASS cancelling again returns 200 -> 200
-  PASS the second body is byte-identical (C-CAN-2) -> {"id":8,"item_id":13,"quantity":4,"status":"cancelled"}
+  PASS the second body is byte-identical (C-CAN-2) -> {"id":8,"item_id":14,"quantity":4,"status":"cancelled"}
   PASS and nothing is released twice -> 10
   PASS cancel 999999 is 404 (C-CAN-3) -> 404
   PASS cancel abc is 404 (C-CAN-3) -> 404
@@ -107,4 +221,4 @@
   PASS its reservations are gone too (C-CAN-3 on a fresh database) -> 404
   PASS creates work again after the restart -> 201=3
 
-== Result  pass=84 fail=0 skip=0 watch=0
+== Result  pass=95 fail=0 skip=0 watch=0

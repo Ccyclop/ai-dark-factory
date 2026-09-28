@@ -18,6 +18,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -58,54 +59,76 @@ type stored struct {
 
 func main() {
 	s := &store{items: map[int64]*item{}, res: map[int64]*reservation{}, idem: map[string]stored{}, nextI: 1, nextR: 1}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.route)
-	srv := &http.Server{Addr: ":8080", Handler: mux, DisableGeneralOptionsHandler: true}
+	// Not http.ServeMux: it cleans paths and answers with a 301 redirect, which
+	// would violate C-PATH-1 (no dot-segment removal, no empty segments, no
+	// trailing-slash tolerance). The real service routes by hand for the same
+	// reason; the stub must too, or the self-test would prove nothing.
+	srv := &http.Server{Addr: ":8080", Handler: http.HandlerFunc(s.route), DisableGeneralOptionsHandler: true}
 	log.Printf("stub listening on %s", srv.Addr)
 	log.Fatal(srv.ListenAndServe())
 }
 
 func (s *store) route(w http.ResponseWriter, r *http.Request) {
-	p := r.URL.Path
+	segs, ok := segments(r.URL.EscapedPath())
+	if !ok {
+		writeErr(w, 400, "bad request target")
+		return
+	}
 	switch {
-	case p == "/health":
+	case len(segs) == 1 && segs[0] == "health":
 		if r.Method != "GET" && r.Method != "HEAD" {
 			notAllowed(w, "GET", "HEAD")
 			return
 		}
 		s.health(w, r)
-	case p == "/items":
+	case len(segs) == 1 && segs[0] == "items":
 		if r.Method != "POST" {
 			notAllowed(w, "POST")
 			return
 		}
 		s.createItem(w, r)
-	case isSegmentPath(p, "/items/"):
+	case len(segs) == 2 && segs[0] == "items":
 		if r.Method != "GET" && r.Method != "HEAD" {
 			notAllowed(w, "GET", "HEAD")
 			return
 		}
-		s.getItem(w, r)
-	case p == "/reservations":
+		s.getItem(w, r, segs[1])
+	case len(segs) == 1 && segs[0] == "reservations":
 		if r.Method != "POST" {
 			notAllowed(w, "POST")
 			return
 		}
 		s.reserve(w, r)
-	case isSegmentPath(p, "/reservations/"):
+	case len(segs) == 2 && segs[0] == "reservations":
 		if r.Method != "DELETE" {
 			notAllowed(w, "DELETE")
 			return
 		}
-		s.cancelRes(w, r)
+		s.cancelRes(w, r, segs[1])
 	default:
 		writeErr(w, 404, "not found")
 	}
 }
 
-// isSegmentPath reports whether p is prefix + exactly one non-empty segment.
-func isSegmentPath(p, prefix string) bool {
-	return strings.HasPrefix(p, prefix) && len(p) > len(prefix) && !strings.Contains(p[len(prefix):], "/")
+// segments splits the path exactly as it was sent -- still percent-encoded --
+// into segments and then decodes each segment on its own (C-PATH-1, D-26). So
+// %2F is decoded inside a segment and never acts as a separator, and nothing is
+// normalised: a trailing slash, an empty segment or a dot segment is just a
+// segment that is not a route.
+func segments(raw string) ([]string, bool) {
+	if !strings.HasPrefix(raw, "/") {
+		return nil, false
+	}
+	parts := strings.Split(strings.TrimPrefix(raw, "/"), "/")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		dec, err := url.PathUnescape(p)
+		if err != nil {
+			return nil, false
+		}
+		out = append(out, dec)
+	}
+	return out, true
 }
 
 func notAllowed(w http.ResponseWriter, allowed ...string) {
@@ -276,8 +299,8 @@ func (s *store) createItem(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *store) getItem(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(w, r)
+func (s *store) getItem(w http.ResponseWriter, r *http.Request, seg string) {
+	id, ok := pathID(w, seg)
 	if !ok {
 		return
 	}
@@ -328,12 +351,12 @@ func (s *store) reserve(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *store) cancelRes(w http.ResponseWriter, r *http.Request) {
+func (s *store) cancelRes(w http.ResponseWriter, r *http.Request, seg string) {
 	key, ok := keyCheck(w, r)
 	if !ok {
 		return
 	}
-	id, ok := pathID(w, r)
+	id, ok := pathID(w, seg)
 	if !ok {
 		return
 	}
@@ -353,11 +376,11 @@ func (s *store) cancelRes(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	raw := r.URL.Path
-	raw = raw[strings.LastIndex(raw, "/")+1:]
-	n, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || n < 1 || strconv.FormatInt(n, 10) != raw {
+// pathID accepts only a canonical decimal id: no sign, no leading zero, no
+// percent-encoded tricks, and it must fit in int64 (C-PATH-1, D-8).
+func pathID(w http.ResponseWriter, seg string) (int64, bool) {
+	n, err := strconv.ParseInt(seg, 10, 64)
+	if err != nil || strconv.FormatInt(n, 10) != seg {
 		writeErr(w, 404, "no such id")
 		return 0, false
 	}

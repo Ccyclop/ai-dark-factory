@@ -65,7 +65,10 @@ check_json_err() {
 }
 
 # check_raw_complete <label> <hex-payload>  -- C-ERR-500: a complete response,
-# and never a 5xx, however malformed the request was.
+# and never 500, however malformed the request was. D-27 allows any other status
+# that net/http itself sends before a handler runs (501 for an unsupported
+# Transfer-Encoding, 505 for a bad HTTP version), so those are reported, not
+# failed: an adversary must not report a break the contract explicitly allows.
 check_raw_complete() {
   local label="$1" payload="$2"
   local out; out="$(adv_tool raw "$payload" 2>&1)"
@@ -73,8 +76,13 @@ check_raw_complete() {
   st="$(printf '%s' "$out" | sed -n 's/^STATUS=//p')"
   comp="$(printf '%s' "$out" | sed -n 's/^COMPLETE=//p')"
   note="$(printf '%s' "$out" | sed -n 's/^NOTE=//p')"
+  if [ "$st" = "500" ]; then
+    bad "$label returned 500 (C-ERR-500: never, for any request)"; return
+  fi
   if [ -n "$st" ] && [ "${st%%0}" != "" ] && [ "$st" -ge 500 ] 2>/dev/null; then
-    bad "$label returned $st (C-ERR-500)"; return
+    watch "$label -> $st, sent by net/http before any handler (allowed by D-27)"
+    [ "$comp" = "true" ] || bad "$label also dropped the connection (C-ERR-500)"
+    return
   fi
   if [ "$comp" = "true" ]; then ok "$label -> ${st:-conn closed cleanly} ${note:+($note)}"
   else bad "$label no complete response: ${note:-dropped connection} (C-ERR-500)"; fi
@@ -152,19 +160,31 @@ for p in /items/../health /items/..%2fhealth /health/..%2f..%2fhealth /health/. 
   check_json_err "GET $p" 404 GET "$p"
 done
 
-head_ "WATCH: percent-encoded spellings of the /health route"
-# C-ERR-404 says any path that is not a route is 404, and section 4 says routes
-# are exact paths. A percent-encoded spelling is the same resource under
-# RFC 3986 6.2.2, so both answers are defensible; report, do not fail.
-for p in /%68ealth /he%61lth /%68ea%6ct%68 /health%3f /HEALTH; do
-  out="$(adv_tool req GET "$p" 2>&1)"
-  st="$(printf '%s' "$out" | sed -n 's/^STATUS=//p')"
-  case "$st" in
-    200) watch "GET $p -> 200 (percent-decoded to the route /health)" ;;
-    404) ok "GET $p -> 404" ;;
-    *)   watch "GET $p -> ${st:-no status}: $(printf '%s' "$out" | sed -n 's/^NOTE=//p')" ;;
-  esac
-done
+head_ "C-PATH-1: percent-encoded spellings and non-normalisation (D-26)"
+# D-26: the path is split as sent and each segment is decoded on its own, so an
+# encoded unreserved character is the same route, %2F is not a separator, and
+# nothing else is normalised.
+check_status "GET /%68ealth (h is an encoded unreserved character)" 200 GET "/%68ealth"
+check_status "GET /he%61lth" 200 GET "/he%61lth"
+check_status "GET /%68ea%6ct%68" 200 GET "/%68ea%6ct%68"
+check_status "GET /%68ealth?x=1 (decoded, query ignored)" 200 GET "/%68ealth?x=1"
+check_json_err "GET /health%2F (%2F is not a separator)" 404 GET "/health%2F"
+check_json_err "GET /health%2f%2e" 404 GET "/health%2f%2e"
+check_json_err "GET /%2e/health (no dot-segment removal)" 404 GET "/%2e/health"
+check_json_err "GET /items%2F1 (%2F does not create a segment)" 404 GET "/items%2F1"
+check_json_err "GET /%68ealth/extra" 404 GET "/%68ealth/extra"
+check_json_err "GET /%68ealth/" 404 GET "/%68ealth/"
+check_json_err "GET //%68ealth (no empty segments)" 404 GET "//%68ealth"
+check_json_err "GET /HEALTH (case matters)" 404 GET "/HEALTH"
+# Invalid percent-encoding never reaches routing (D-27): net/http refuses it, and
+# it must never be served as a route nor answered 500.
+out="$(adv_tool req GET '/%zz' 2>&1)"
+st="$(printf '%s' "$out" | sed -n 's/^STATUS=//p')"
+if [ -z "$st" ] || [ "$st" = "500" ] || [ "$st" = "200" ]; then
+  bad "GET /%zz -> ${st:-no response} (expected a net/http rejection)"
+else
+  ok "GET /%zz -> $st (rejected before routing, D-27)"
+fi
 
 # ---------------------------------------------------------------- C-ERR-405
 head_ "C-ERR-405: wrong method on a route is 405 + Allow + C-REP-ERR"

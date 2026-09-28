@@ -18,6 +18,7 @@ set -uo pipefail
 
 ADV_TAG="${ADV_TAG:-practice-adversary}"     # C-RUN-5: never `practice`
 ADV_TOOL_TAG="${ADV_TOOL_TAG:-adversary-tool:local}"
+ADV_STUB_TAG="${ADV_STUB_TAG:-adversary-stub:local}"
 ADV_NAME="${ADV_NAME:-adv-svc}"
 ADV_CLIENT="${ADV_CLIENT:-curlimages/curl:8.11.1}"   # cached locally, D-23
 ADV_URL="${ADV_URL:-http://127.0.0.1:8080}"
@@ -48,6 +49,15 @@ adv_build_tool() {
   [ -f "$REPO_ROOT/adversary/tool/Dockerfile" ] || return 0
   log "building attack tool image $ADV_TOOL_TAG"
   ( cd "$REPO_ROOT/adversary/tool" && docker build --network=none -t "$ADV_TOOL_TAG" . ) >&2
+}
+
+# The self-test stub is rebuilt too, never merely checked for existence: a stale
+# stub proves nothing, and that is how the ServeMux redirect behaviour survived
+# one full self-test run.
+adv_build_stub() {
+  [ -f "$REPO_ROOT/adversary/dryrun/Dockerfile" ] || return 0
+  log "building stub image $ADV_STUB_TAG"
+  ( cd "$REPO_ROOT/adversary/dryrun" && docker build --network=none -t "$ADV_STUB_TAG" . ) >&2
 }
 
 # Exactly the C-RUN-1 command. Only -d, --rm and --name are added.
@@ -91,6 +101,18 @@ adv_elapsed()  { printf '%s' "$1" | sed -n 's/.*elapsed_ms=//p'; }
 # adv_hdr <output> <name> -> header value, matched case-insensitively.
 adv_hdr() {
   printf '%s' "$1" | sed -n 's/^HDR //p' | grep -i "^$2: " | head -1 | sed 's/^[^:]*: //'
+}
+
+# pct_encode <string>: percent-encodes every byte, so a value can be spelled in
+# its encoded form (C-PATH-1). Note that sed cannot do this: 's/./%&/g' on "14"
+# yields "%1%4", not "%31%34".
+pct_encode() {
+  local s="$1" out="" i c
+  for (( i = 0; i < ${#s}; i++ )); do
+    c="${s:$i:1}"
+    out="$out%$(printf '%02X' "'$c")"
+  done
+  printf '%s' "$out"
 }
 
 # Compact-JSON field readers. Every contracted body is a single flat object with
