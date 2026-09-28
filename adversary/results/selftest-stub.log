@@ -1,0 +1,110 @@
+
+== Harness: C-RUN-4 / C-RUN-5 preconditions
+  self-test mode: stub image, results are NOT a verdict
+  PASS docker port is empty: -p 8080:8080 publishes nothing (C-RUN-4 premise)
+  PASS run limits intact (C-RUN-1) -> none 1000000000 536870912
+  PASS ready within 10s (C-RUN-2)
+
+== Gate: are the state routes implemented?
+  POST /items -> 201
+
+== C-CREATE-4: identical creates without a key are independent items
+  PASS 5 identical creates -> 5 x 201 -> 201=5
+  PASS 5 distinct bodies, so 5 distinct items -> 5
+  PASS no dropped connection -> 0
+
+== C-CREATE-2/3: boundary values for name and stock
+  PASS stock 0 accepted -> 201
+  PASS stock 0 -> available 0 -> 0
+  PASS stock 1000000000 accepted -> 201
+  PASS stock -1 rejected (C-ERR-400) -> 400
+  PASS stock 1000000001 rejected (C-ERR-400) -> 400
+  PASS stock 5.0 rejected (C-ERR-400) -> 400
+  PASS stock 1e3 rejected (C-ERR-400) -> 400
+  PASS stock "5" rejected (C-ERR-400) -> 400
+  PASS stock true rejected (C-ERR-400) -> 400
+  PASS stock null rejected (C-ERR-400) -> 400
+  PASS stock "abc" rejected (C-ERR-400) -> 400
+  PASS name of exactly 200 code points accepted -> 201
+  PASS 200-code-point name returned unchanged -> ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  PASS name of 201 code points rejected -> 400
+  PASS whitespace-only name rejected -> 400
+  PASS body of 1048577 bytes rejected (C-ERR-400) -> 400
+  PASS trailing content after the object rejected -> 400
+
+== C-RES-6 / C-INV-1: 50 simultaneous reserves on one item (S-11)
+  PASS 50 x 1 unit on stock 5 -> 5 x 201, 45 x 409 -> 201=5 409=45
+  PASS no dropped connection (C-ERR-500) -> 0
+  PASS available is 0 (C-INV-1, C-INV-2) -> 0
+  PASS 50 x 2 units on stock 3 -> 1 x 201, 49 x 409 -> 201=1 409=49
+  PASS available is 1: the leftover unit is not lost (C-INV-2) -> 1
+  PASS 50 x 3 units on the leftover 1 -> 0 x 201, 50 x 409 -> 409=50
+  PASS available still 1 (C-RES-5 changes nothing) -> 1
+
+== C-RES-5: insufficient stock is 409 and changes nothing
+  PASS reserve of exactly available succeeds -> 201
+  PASS available is 0 afterwards -> 0
+  PASS one more unit is 409 -> 409
+  PASS the 409 body is C-REP-ERR -> 1
+  PASS available unchanged by the 409 -> 0
+  PASS quantity 0 rejected (C-RES-3) -> 400
+  PASS quantity -1 rejected (C-RES-3) -> 400
+  PASS quantity 1000000001 rejected (C-RES-3) -> 400
+  PASS quantity 1.5 rejected (C-RES-3) -> 400
+  PASS quantity "3" rejected (C-RES-3) -> 400
+  PASS item_id 999999 is 404 (C-RES-4) -> 404
+  PASS item_id 0 is 404 (C-RES-4) -> 404
+  PASS item_id -1 is 404 (C-RES-4) -> 404
+  PASS 400 beats 404 (C-ERR-PREC) -> 400
+  PASS 404 beats 409 for an unknown item (C-ERR-PREC) -> 404
+  PASS missing quantity is 400 -> 400
+  PASS array instead of object is 400 -> 400
+
+== C-CAN-1/2/3/4: cancel restores, repeats change nothing, ids are validated
+  PASS available is 6 after reserving 4 -> 6
+  PASS cancel returns 200 -> 200
+  PASS status is cancelled (C-CAN-1) -> cancelled
+  PASS available is 10 after the cancel -> 10
+  PASS cancelling again returns 200 -> 200
+  PASS the second body is byte-identical (C-CAN-2) -> {"id":8,"item_id":13,"quantity":4,"status":"cancelled"}
+  PASS and nothing is released twice -> 10
+  PASS cancel 999999 is 404 (C-CAN-3) -> 404
+  PASS cancel abc is 404 (C-CAN-3) -> 404
+  PASS cancel 0 is 404 (C-CAN-3) -> 404
+  PASS cancel -1 is 404 (C-CAN-3) -> 404
+  PASS cancel 01 is 404 (C-CAN-3) -> 404
+  PASS released units can be reserved again (C-CAN-4) -> 201
+
+== C-INV-3: 20 simultaneous cancels of one reservation release once
+  PASS available is 93 after reserving 7 -> 93
+  PASS every concurrent cancel answers 200 (C-CAN-2) -> 200=20
+  PASS 7 units are released exactly once (C-INV-3) -> 100
+
+== C-INV-1/C-INV-2: reserves racing cancels, checked by exact arithmetic
+  PASS 20 sequential 1-unit reserves all succeed -> 201=20
+  PASS available is 10 afterwards -> 10
+  PASS every concurrent cancel still answers 200 -> 200=20
+  PASS the 409s are exactly the ones that lost the race -> 19
+  PASS available is exactly 0 (C-INV-2) -> 0
+  PASS available stayed within 0..stock (C-INV-1): 0
+  PASS no 5xx during the race (C-ERR-500) -> 0
+
+== C-IDEM-*: idempotency keys (Milestone 2)
+  PASS 3 replays of one key returned 1 distinct response (C-IDEM-2)
+  PASS and the units were taken exactly once (C-INV-4) -> 97
+  PASS same key, different body -> 409 (C-IDEM-3) -> 409
+  PASS and nothing changed -> 97
+  PASS the original response survives the 409 (C-IDEM-4) -> 201
+  PASS same key, different path -> 409 (C-IDEM-3) -> 409
+  PASS 50 simultaneous requests with one new key -> 1 distinct response (C-IDEM-6) -> 1
+  PASS exactly one of them executed (C-INV-4) -> 96
+  PASS 255-byte key accepted (C-IDEM-5)
+  PASS two Idempotency-Key headers -> 400 (C-IDEM-5) -> 400
+  PASS the key is ignored on GET (C-IDEM-1) -> 200
+
+== C-RUN-3: a fresh container starts from an empty database
+  PASS an item from the previous container life is gone (C-RUN-3) -> 404
+  PASS its reservations are gone too (C-CAN-3 on a fresh database) -> 404
+  PASS creates work again after the restart -> 201=3
+
+== Result  pass=84 fail=0 skip=0 watch=0

@@ -7,8 +7,14 @@
 #   C-RUN-5  the adversary builds its own tag, never `practice`.
 #
 # Nothing here may change the run command's resources or network mode.
+#
+# Deliberately no `set -e`: this file is sourced, and a campaign that aborts on
+# the first non-zero exit produces a silently truncated report, which is worse
+# than a failed check. Every check must run, report and be counted. A docker
+# daemon hiccup must never be reported as a contract break either, which is what
+# adv_tool's retry is for.
 
-set -euo pipefail
+set -uo pipefail
 
 ADV_TAG="${ADV_TAG:-practice-adversary}"     # C-RUN-5: never `practice`
 ADV_TOOL_TAG="${ADV_TOOL_TAG:-adversary-tool:local}"
@@ -59,6 +65,40 @@ adv_up() {
 
 adv_down() { docker rm -f "$ADV_NAME" >/dev/null 2>&1 || true; }
 
+# adv_run <tool args...>: runs the tool, always returns 0, leaves the output in
+# ADV_OUT and the tool's exit code in ADV_RC. Use where a check must be able to
+# report a client-side failure as a check failure instead of losing the output.
+adv_run() {
+  ADV_OUT="$(adv_tool "$@" 2>&1)"
+  ADV_RC=$?
+  return 0
+}
+
+# --- reading the tool's output ----------------------------------------------
+# The tool prints one KEY=value pair per line. These read one field back without
+# re-parsing, so a campaign script stays a list of attacks.
+
+adv_status()   { printf '%s' "$1" | sed -n 's/^STATUS=//p'; }
+adv_body()     { printf '%s' "$1" | sed -n 's/^BODY=//p'; }
+adv_complete() { printf '%s' "$1" | sed -n 's/^COMPLETE=//p'; }
+adv_note()     { printf '%s' "$1" | sed -n 's/^NOTE=//p'; }
+adv_hist()     { printf '%s' "$1" | sed -n 's/^STATUS_HIST //p'; }
+adv_distinct() { printf '%s' "$1" | sed -n 's/^DISTINCT_RESPONSES=//p'; }
+adv_sample()   { printf '%s' "$1" | sed -n 's/^SAMPLE=//p'; }
+adv_incomplete() { printf '%s' "$1" | sed -n 's/^INCOMPLETE=//p'; }
+adv_fivexx()   { printf '%s' "$1" | sed -n 's/^FIVE_XX=//p'; }
+adv_elapsed()  { printf '%s' "$1" | sed -n 's/.*elapsed_ms=//p'; }
+# adv_hdr <output> <name> -> header value, matched case-insensitively.
+adv_hdr() {
+  printf '%s' "$1" | sed -n 's/^HDR //p' | grep -i "^$2: " | head -1 | sed 's/^[^:]*: //'
+}
+
+# Compact-JSON field readers. Every contracted body is a single flat object with
+# uniquely named fields, so one greedy match per field is unambiguous. Numbers
+# come back as integers, strings without their quotes.
+jnum() { printf '%s' "$1" | sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\(-*[0-9][0-9]*\).*/\1/p"; }
+jstr() { printf '%s' "$1" | sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p"; }
+
 # C-RUN-2: /health must answer at 127.0.0.1:8080 inside the namespace within 10s.
 adv_wait_ready() {
   local budget="${1:-10}" waited=0
@@ -77,6 +117,19 @@ adv_curl() {
 }
 
 # C-RUN-4: the compiled attack tool, inside the service's network namespace.
+#
+# Exit codes 125..127 come from docker itself, never from the tool (which exits
+# 0, 1 or 2), and they mean the client container never ran. That is a fact about
+# the daemon, not about the service, so it is retried once instead of being
+# reported as a breach: an adversary that blames the service for its own tooling
+# loses the room's trust and the implementer's time.
 adv_tool() {
-  docker run --rm --network "container:$ADV_NAME" "$ADV_TOOL_TAG" "$@"
+  local out rc
+  out="$(docker run --rm --network "container:$ADV_NAME" "$ADV_TOOL_TAG" "$@" 2>&1)"; rc=$?
+  if [ "$rc" -ge 125 ] && ! printf '%s' "$out" | grep -q '^STATUS='; then
+    log "client container failed to start (docker exit $rc), retrying once"
+    out="$(docker run --rm --network "container:$ADV_NAME" "$ADV_TOOL_TAG" "$@" 2>&1)"; rc=$?
+  fi
+  printf '%s\n' "$out"
+  return $rc
 }

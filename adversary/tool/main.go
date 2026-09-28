@@ -229,6 +229,8 @@ func main() {
 		err = cmdBigHeader(os.Args[2:])
 	case "bigline":
 		err = cmdBigLine(os.Args[2:])
+	case "seq":
+		err = cmdSeq(os.Args[2:])
 	case "abort":
 		err = cmdAbort(os.Args[2:])
 	case "load":
@@ -431,6 +433,7 @@ func cmdBurst(args []string) error {
 			fiveXX++
 		}
 	}
+	distinct, sample := distinctResponses(results)
 	var keys []int
 	for k := range hist {
 		keys = append(keys, k)
@@ -442,6 +445,8 @@ func cmdBurst(args []string) error {
 	}
 	fmt.Printf("BURST n=%d method=%s path=%s elapsed_ms=%d\n", n, method, path, elapsed.Milliseconds())
 	fmt.Printf("STATUS_HIST %s\n", strings.Join(parts, " "))
+	fmt.Printf("DISTINCT_RESPONSES=%d\n", distinct)
+	fmt.Printf("SAMPLE=%s\n", sample)
 	fmt.Printf("INCOMPLETE=%d\n", incomplete)
 	fmt.Printf("FIVE_XX=%d\n", fiveXX)
 	fmt.Printf("MAX_STATUS=%d\n", maxStatus(results))
@@ -455,6 +460,26 @@ func cmdBurst(args []string) error {
 	return nil
 }
 
+// distinctResponses counts distinct "status body" pairs among complete
+// responses and returns one sample. Replay and idempotency criteria are judged
+// from this number: one means every request got byte-identical answers, many
+// means each request did its own work (C-IDEM-2, C-IDEM-6, C-CREATE-4, C-RES-7).
+func distinctResponses(rs []resp) (int, string) {
+	seen := map[string]bool{}
+	sample := ""
+	for _, r := range rs {
+		if !r.complete {
+			continue
+		}
+		k := fmt.Sprintf("%d %s", r.status, string(r.body))
+		if sample == "" {
+			sample = k
+		}
+		seen[k] = true
+	}
+	return len(seen), sample
+}
+
 func maxStatus(rs []resp) int {
 	m := 0
 	for _, r := range rs {
@@ -463,6 +488,87 @@ func maxStatus(rs []resp) int {
 		}
 	}
 	return m
+}
+
+// parseCall reads the shared "<method> <path> [-H k: v]... [--body s|--body-N n]"
+// argument form used by req, burst and seq.
+func parseCall(args []string) (method, path string, hdrs []string, body []byte, err error) {
+	if len(args) < 2 {
+		return "", "", nil, nil, fmt.Errorf("expected <method> <path>")
+	}
+	method, path = args[0], args[1]
+	rest := args[2:]
+	for i := 0; i < len(rest); i++ {
+		switch {
+		case rest[i] == "-H" && i+1 < len(rest):
+			i++
+			hdrs = append(hdrs, rest[i])
+		case rest[i] == "--body" && i+1 < len(rest):
+			i++
+			body = []byte(rest[i])
+		case rest[i] == "--body-N" && i+1 < len(rest):
+			i++
+			body = bytes.Repeat([]byte("A"), mustAtoi(rest[i]))
+		default:
+			return "", "", nil, nil, fmt.Errorf("unexpected argument %q", rest[i])
+		}
+	}
+	return method, path, hdrs, body, nil
+}
+
+// cmdSeq sends the same request n times, one connection per request, and reports
+// the response histogram and how many distinct responses came back. The repeat
+// and replay criteria are read straight off those two numbers: one distinct
+// response means every replay was answered identically (C-IDEM-2), n distinct
+// responses means each request executed on its own (C-CREATE-4, C-RES-7).
+func cmdSeq(args []string) error {
+	if len(args) < 3 {
+		return fmt.Errorf("usage: seq <n> <method> <path> [-H 'k: v']... [--body s|--body-N n]")
+	}
+	n := mustAtoi(args[0])
+	method, path, hdrs, body, err := parseCall(args[1:])
+	if err != nil {
+		return err
+	}
+	results := make([]resp, n)
+	for i := 0; i < n; i++ {
+		results[i] = one(method, path, hdrs, body)
+	}
+	distinct, sample := distinctResponses(results)
+	hist := map[int]int{}
+	var incomplete, fiveXX int
+	for _, r := range results {
+		if !r.complete {
+			incomplete++
+			continue
+		}
+		hist[r.status]++
+		if r.status >= 500 {
+			fiveXX++
+		}
+	}
+	keys := make([]int, 0, len(hist))
+	for k := range hist {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	var parts []string
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%d=%d", k, hist[k]))
+	}
+	fmt.Printf("SEQ n=%d method=%s path=%s\n", n, method, path)
+	fmt.Printf("STATUS_HIST %s\n", strings.Join(parts, " "))
+	fmt.Printf("DISTINCT_RESPONSES=%d\n", distinct)
+	fmt.Printf("SAMPLE=%s\n", sample)
+	fmt.Printf("INCOMPLETE=%d\n", incomplete)
+	fmt.Printf("FIVE_XX=%d\n", fiveXX)
+	if fiveXX > 0 {
+		return fmt.Errorf("C-ERR-500 breach: %d responses were 5xx", fiveXX)
+	}
+	if incomplete > 0 {
+		return fmt.Errorf("C-ERR-500 breach: %d/%d responses incomplete (dropped connection)", incomplete, n)
+	}
+	return nil
 }
 
 // cmdBigBody sends a request whose body is n filler bytes. An oversized body
