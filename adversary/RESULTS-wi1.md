@@ -1,7 +1,10 @@
 # Adversary results — WI-1 (commit 9db2c84)
 
 Campaign run: 2026-09-28, this seat's clone, contract revision `fb56d88` (C-RUN-4 and
-C-RUN-5 in force).
+C-RUN-5 in force). Reviewed afterwards against `20efb24` (D-24, D-25): the service is
+unchanged (still `9db2c84`) and D-24 confirms the reach model this campaign used, so
+every result below stands under the current contract text. See "Effect of D-25" for
+the one place where the contract text itself moved.
 
 ```
 NO-BREAK WI-1
@@ -61,6 +64,24 @@ boundaries a later milestone can rot:
 - A 16 MiB request line is answered `431` and a 1 MiB one is answered `404`; both complete.
 - A client that half-closes mid-body gets `405`/`404`, not a reset.
 
+## Effect of D-25 on this campaign
+
+D-25 landed as `20efb24`, after the run. It excludes `net/http`'s protocol-level
+rejections from C-REP-HDR and allows exactly one `5xx` (the `505` for an unsupported HTTP
+major version). That matters for how this log should be read: roughly 20 of the checks
+record plain-text `400`s and two record `431`s from `net/http` itself, before any handler
+runs. Under the pre-D-25 wording of C-REP-HDR ("every response, success or error, carries
+`Content-Type: application/json` and a body that is a single JSON object") those would
+have been reportable C-REP-HDR breaks, and no in-contract fix could have removed them —
+which is the situation D-25 correctly describes. So:
+
+- Under D-25, this campaign is a NO-BREAK with no qualifications.
+- If D-25 is ever reverted, the same log becomes a C-REP-HDR break report with 22
+  reproductions (`adversary/results/wi1-9db2c84.log`, the `400`/`431` lines), and the
+  only in-contract remedy would be a custom connection layer, i.e. outside the brief.
+
+No check in this campaign expected a `5xx` from any other cause, and none occurred.
+
 ## Observations for the planner (not breaks — reported, not counted)
 
 1. **Percent-encoded spellings of a route are served as the route.**
@@ -69,11 +90,11 @@ boundaries a later milestone can rot:
    says any path that is not a route returns 404, and section 4 says routes are exact
    paths, so this is genuinely ambiguous rather than a violation. It becomes material
    at WI-4: under this behaviour `/reservations/%31` is reservation 1.
-   *Recommendation:* make it a decision now (D-24) and pin it in the verifier's suite —
-   either "the target is compared after percent-decoding, so equivalent encodings are the
-   same route" or "only the exact spelling is the route, everything else is 404". Leaving
-   it unstated means the answer can change between milestones without breaking any
-   criterion, which is exactly the kind of drift this room is meant to catch.
+   *Recommendation:* make it a decision now (the next free `D-*` number) and pin it in the
+   verifier's suite — either "the target is compared after percent-decoding, so equivalent
+   encodings are the same route" or "only the exact spelling is the route, everything else
+   is 404". Leaving it unstated means the answer can change between milestones without
+   breaking any criterion, which is exactly the kind of drift this room is meant to catch.
 2. **Two parser leniencies, no contract entry involved.** Go accepts bare-LF request
    lines (`GET /health HTTP/1.1\nHost: x\n\n` returns `200`) and accepts a 1 048 577-byte
    header block (its cap is `MaxHeaderBytes` plus 4 KiB of slack; 8 MiB gives `431`).
