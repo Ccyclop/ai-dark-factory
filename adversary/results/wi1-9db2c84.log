@@ -1,0 +1,130 @@
+== Harness: C-RUN-4 / C-RUN-5 reachability preconditions
+[adv] docker build --network=none -t practice-adversary .  (in practice/service)
+  PASS service built offline with tag practice-adversary (C-RUN-5)
+[adv] docker run -d --rm --name adv-svc --network=none --cpus=1 --memory=512m -p 8080:8080 practice-adversary
+  PASS docker port is empty: -p 8080:8080 publishes nothing (C-RUN-4 premise)
+  PASS host cannot reach 127.0.0.1:8080 (C-RUN-4 premise holds)
+  PASS a detached-namespace container cannot reach it either
+  PASS run limits intact: NetworkMode=none NanoCpus=1 Memory=512m (C-RUN-1)
+== C-RUN-2: /health answers at 127.0.0.1:8080 within 10s of container start
+[adv] docker run -d --rm --name adv-svc --network=none --cpus=1 --memory=512m -p 8080:8080 practice-adversary
+  PASS cold start 1: READY ms=1 status=200 body={"status": "ok"}
+[adv] docker run -d --rm --name adv-svc --network=none --cpus=1 --memory=512m -p 8080:8080 practice-adversary
+  PASS cold start 2: READY ms=3 status=200 body={"status": "ok"}
+[adv] docker run -d --rm --name adv-svc --network=none --cpus=1 --memory=512m -p 8080:8080 practice-adversary
+  PASS cold start 3: READY ms=0 status=200 body={"status": "ok"}
+[adv] docker run -d --rm --name adv-svc --network=none --cpus=1 --memory=512m -p 8080:8080 practice-adversary
+== C-OP-HEALTH: GET /health -> 200 {"status": "ok"}
+  PASS status 200
+  PASS body exactly {"status": "ok"}
+  PASS Content-Type: application/json (C-REP-HDR)
+== C-ERR-404: every non-route path is 404 with C-REP-ERR
+  PASS GET / -> 404 {"error":"not found"}
+  PASS GET /items -> 404 {"error":"not found"}
+  PASS GET /items/1 -> 404 {"error":"not found"}
+  PASS GET /items/abc -> 404 {"error":"not found"}
+  PASS GET /reservations -> 404 {"error":"not found"}
+  PASS GET /reservations/1 -> 404 {"error":"not found"}
+  PASS GET /health/ -> 404 {"error":"not found"}
+  PASS GET /health/extra -> 404 {"error":"not found"}
+  PASS GET /HEALTH -> 404 {"error":"not found"}
+  PASS GET /healthz -> 404 {"error":"not found"}
+  PASS GET /api/items -> 404 {"error":"not found"}
+  PASS GET //health -> 404 {"error":"not found"}
+  PASS GET /./health -> 404 {"error":"not found"}
+  PASS GET /health?probe=1 (query is not the path) -> 200
+== C-ERR-404: traversal, separators and control bytes are not routes
+  PASS GET /items/../health -> 404 {"error":"not found"}
+  PASS GET /items/..%2fhealth -> 404 {"error":"not found"}
+  PASS GET /health/..%2f..%2fhealth -> 404 {"error":"not found"}
+  PASS GET /health/. -> 404 {"error":"not found"}
+  PASS GET /health%2f -> 404 {"error":"not found"}
+  PASS GET /health%2F%2e -> 404 {"error":"not found"}
+  PASS GET /%2e/health -> 404 {"error":"not found"}
+  PASS GET /health%00 -> 404 {"error":"not found"}
+  PASS GET /health%20 -> 404 {"error":"not found"}
+== WATCH: percent-encoded spellings of the /health route
+  WATCH GET /%68ealth -> 200 (percent-decoded to the route /health)
+  WATCH GET /he%61lth -> 200 (percent-decoded to the route /health)
+  WATCH GET /%68ea%6ct%68 -> 200 (percent-decoded to the route /health)
+  PASS GET /health%3f -> 404
+  PASS GET /HEALTH -> 404
+== C-ERR-405: wrong method on a route is 405 + Allow + C-REP-ERR
+  PASS POST /health -> 405 {"error":"method not allowed"}
+  PASS PUT /health -> 405 {"error":"method not allowed"}
+  PASS DELETE /health -> 405 {"error":"method not allowed"}
+  PASS PATCH /health -> 405 {"error":"method not allowed"}
+  PASS OPTIONS /health -> 405 {"error":"method not allowed"}
+  PASS TRACE /health -> 405 {"error":"method not allowed"}
+  PASS CONNECT /health -> 405 {"error":"method not allowed"}
+  PASS Allow header present on 405 (C-ERR-405): GET, HEAD
+== C-REP-HDR: HEAD /health is 200 with no body
+  PASS HEAD status 200
+  PASS HEAD body empty
+== C-ERR-500: malformed requests get a complete response, never 5xx
+  PASS bare LF request line -> 400 
+  PASS no Host header (HTTP/1.1) -> 400 
+  PASS bad HTTP version -> 400 
+  PASS non-numeric status target -> 400 
+  PASS negative Content-Length -> 400 
+  PASS non-numeric Content-Length -> 400 
+  PASS header without colon -> 400 
+  PASS space in header name -> 400 
+  PASS absolute-form target -> 400 
+  PASS HTTP/1.0 no Host -> 400 
+  PASS garbage bytes as a line -> 400 
+  PASS Content-Length + chunked -> 400 
+  PASS Expect: 100-continue -> 400 
+  PASS duplicate Host headers -> 400 
+  PASS NUL in header value -> 400 
+  PASS NUL in request target -> 400 
+  PASS LF-only, no CR at all -> 200 
+== C-ERR-500: header block past MaxHeaderBytes (1 MiB)
+  PASS headers of 1048577 bytes -> 200 complete
+  PASS headers of 8388608 bytes -> 431 complete
+== C-ERR-500 / C-ERR-400: oversized bodies still get a complete response
+  PASS POST /health with 1048577-byte body -> 405 complete
+  PASS POST /health with 8388608-byte body -> 405 complete
+  PASS POST /health with 67108864-byte body -> 405 complete
+  PASS GET /health with 4 MiB body -> 200 complete
+== C-ERR-500: bodies past the 64 MiB drain cap (67108864 = 64 MiB)
+  PASS POST /nope with 67108865-byte body -> 404 complete
+  PASS POST /nope with 100663296-byte body -> 404 complete
+  PASS POST /nope with 134217728-byte body -> 404 complete
+== C-ERR-500: request-parser edges still get a complete response
+  PASS duplicate Content-Length (3 and 4) -> 400 
+  PASS Content-Length int64 overflow -> 400 
+  PASS obs-fold continuation line -> 400 
+  PASS double space in request line -> 400 
+  PASS tab in request line -> 400 
+  PASS bare CR inside header value -> 400 
+  PASS OPTIONS * (general handler disabled) -> 400 
+  PASS lowercase method -> 400 
+  PASS Transfer-Encoding: gzip -> 400 
+  PASS bad chunk size -> 400 
+  PASS chunked with uppercase hex size -> 400 
+== C-ERR-500: request line far past any header cap
+  PASS 65536-byte request line -> 404 complete
+  PASS 1048576-byte request line -> 404 complete
+  PASS 16777216-byte request line -> 431 complete
+== C-ERR-500: client stops sending mid-body
+  PASS POST /health (declared 1000000, half sent) -> 405 complete
+  PASS POST /nope (declared 1000000, half sent) -> 404 complete
+  PASS POST /nope (declared 4, half sent) -> 404 complete
+== C-ERR-500 under simultaneity (S-11 shape, 50 at once)
+  PASS burst 50 GET /health: 200=50
+  PASS burst 200 GET /health: 200=200
+  PASS burst 50 POST /health: 405=50
+== C-ERR-500 under sustained load: 15s, mixed routes and methods
+  PASS load /health: 200=341437 total=341437
+  PASS load /nope: 404=238751
+== C-RUN-3 / C-INV-1 / C-INV-2: not observable at WI-1
+  SKIP C-RUN-3 fresh database: no endpoint stores anything yet
+  SKIP C-INV-1/C-INV-2 stock arithmetic: no item or reservation endpoint yet
+  SKIP C-IDEM-*: Milestone 2
+== Result  pass=94 fail=0 skip=3 watch=3
+Observations for the planner (not breaks):
+  - GET /%68ealth -> 200 (percent-decoded to the route /health)
+  - GET /he%61lth -> 200 (percent-decoded to the route /health)
+  - GET /%68ea%6ct%68 -> 200 (percent-decoded to the route /health)
+EXIT=0
