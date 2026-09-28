@@ -54,7 +54,7 @@ Owner: Planner. Every change is logged in `DECISIONS.md` and announced in the ro
 | C-REP-ITEM | M1 | Item JSON object with exactly these fields: `"id"` (JSON integer ≥ 1), `"name"` (JSON string, exactly as submitted), `"stock"` (JSON integer, the stock count given at creation; never changes), `"available"` (JSON integer, see C-INV-2). | S-6, S-7, D-3, D-4 |
 | C-REP-RES | M1 | Reservation JSON object with exactly these fields: `"id"` (JSON integer ≥ 1, the reservation id), `"item_id"` (JSON integer), `"quantity"` (JSON integer), `"status"` (JSON string, `"active"` or `"cancelled"`). | S-8, S-9, D-3, D-5 |
 | C-REP-ERR | M1 | Error JSON object with exactly one field: `"error"` (non-empty JSON string, human-readable; exact wording is not contracted). Shape: `{"error": "<message>"}`. | S-10 |
-| C-REP-HDR | M1 | Every response, success or error, carries `Content-Type: application/json` and a body that is a single JSON object (responses to `HEAD` carry no body, per HTTP). | S-10, D-9 |
+| C-REP-HDR | M1 | Every response, success or error, carries `Content-Type: application/json` and a body that is a single JSON object (responses to `HEAD` carry no body, per HTTP). Scope: every request that Go's `net/http` server parses and passes to the service's handler. Requests that `net/http` itself rejects at the protocol level before any handler runs (malformed request line or header syntax, unsupported HTTP version, headers over the server's header size limit) may get `net/http`'s own plain-text `4xx`; they are still bound by C-ERR-500. | S-4, S-10, D-9, D-25 |
 | C-ID-1 | M1 | Item ids and reservation ids are separate sequences of positive integers assigned by the server. An id is never reused. | S-6, S-8, D-3 |
 
 ---
@@ -110,7 +110,7 @@ All routes are exact paths. `{id}` is a path segment.
 | C-ERR-405 | M1 | A route path used with a method it does not support returns `405` with C-REP-ERR and an `Allow` header. | D-9 |
 | C-ERR-409 | M1/M2 | `409` with C-REP-ERR for insufficient stock (C-RES-5) and for idempotency key reuse with a different request (C-IDEM-3). | S-12, D-10 |
 | C-ERR-PREC | M1 | When several errors apply, the first in this order wins: `400` (header or body validation) → `404` (unknown id) → `409`. | D-10 |
-| C-ERR-500 | M1 | Never 500: no request, however malformed, oversized or concurrent, gets any `5xx` status, and every request receives a complete HTTP response (no dropped connection). | S-10 |
+| C-ERR-500 | M1 | Never 500: no request, however malformed, oversized or concurrent, gets status `500`. Every request that reaches the service's handler gets no `5xx` status at all, and every request receives a complete HTTP response (no dropped connection). The only `5xx` allowed is the `505` that `net/http` itself sends, before any handler runs, for a request whose HTTP major version is not 1. | S-10, S-4, D-25 |
 
 ---
 

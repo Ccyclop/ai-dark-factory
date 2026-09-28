@@ -106,3 +106,12 @@ Decision (default, pending the human's answer): keep S-5's run command exactly a
 
 **D-24 — The human confirms D-20** (2026-09-26). The answer to the one question asked: "Keep your default: the exact run command stays, and tests reach the service through its network namespace (C-RUN-4, C-RUN-5). The contradiction was an error in the brief, not a requirement. No other changes." D-20 is no longer provisional. The contract text does not change.
 Questions asked to the human in total: 1 (D-20), answered.
+
+**D-25 — Protocol-level rejections by `net/http`** (2026-09-28; the implementer listed this as a known limit in EVIDENCE WI-1).
+Finding: Go's `net/http` server answers some requests itself before any handler runs, with its own plain-text response. A malformed request line or header syntax gets `400`, headers over the size limit get `431`, and a request whose HTTP major version is not 1 (e.g. `GET / HTTP/3.0`) gets `505`. The service's code never sees these requests.
+Decision:
+1. C-REP-HDR (JSON body and `Content-Type`) applies to every request that `net/http` parses and passes to the handler. Protocol-level rejections by `net/http` are excluded.
+2. C-ERR-500 is split. Status `500` is never allowed for any request (S-10, verbatim: "Never 500"). For every request that reaches the handler, no `5xx` at all is allowed. The only `5xx` allowed is the `505` that `net/http` itself sends for an unsupported HTTP version.
+3. The server must not be configured so that `net/http` sends a `5xx` for any other reason.
+*Reason:* S-4 requires Go's standard-library HTTP server, and these responses are its fixed behaviour. S-10 is about invalid input to the API, which requires a parsed HTTP request; its hard rule is "Never 500", which still holds. Changing responses below `net/http` would need a custom connection layer, which is outside the brief's stack. Without this decision, the adversary could report a break that no in-contract fix could resolve.
+*Affects:* C-REP-HDR (scope sentence added), C-ERR-500 (split as above). WI-1's criteria don't change: its cases (8000-character path, 2 MB body, 50 simultaneous requests) all reach the handler, so they must still get JSON and no `5xx`.
