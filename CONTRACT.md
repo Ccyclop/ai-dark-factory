@@ -63,6 +63,8 @@ Owner: Planner. Every change is logged in `DECISIONS.md` and announced in the ro
 
 All routes are exact paths. `{id}` is a path segment.
 
+- C-PATH-1 [M1]: A request path is matched as follows. Split the path as sent (still percent-encoded) on `/`, percent-decode each segment separately, and compare segments exactly. So a percent-encoded segment is the same as its decoded form (`/%68ealth` is `/health`; `/reservations/%31` is `/reservations/1`). An encoded slash `%2F` never separates segments (`/items%2F1` is one segment, so `404`). Nothing else is normalised: a trailing slash (`/health/`), an empty segment (`//health`, `/items//1`) and dot-segments (`/items/../health`) are not routes, so `404`. A query string is ignored for matching. (D-26)
+
 | id | M | Method and path | Success | Refs |
 |---|---|---|---|---|
 | C-OP-HEALTH | M1 | `GET /health` | `200` body `{"status": "ok"}` | D-12 |
